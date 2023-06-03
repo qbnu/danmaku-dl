@@ -1,0 +1,5 @@
+# Put your nicovideo.jp cookies in here
+
+nicosid=
+user_session=
+user_session_secure=
