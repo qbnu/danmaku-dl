@@ -17,26 +17,28 @@ import functools
 import random
 import shutil
 
-#Nicovideo doesn't return brotli anyway
+# Nicovideo doesn't return brotli anyway
 try:
     import brotli
-except:
+except ModuleNotFoundError:
     pass
+
+print = functools.partial(print, flush=True)
+
 
 class DelayedKeyboardInterrupt:
     def __enter__(self):
         self.signal_received = False
         self.old_handler = signal.signal(signal.SIGINT, self.handler)
-                
+
     def handler(self, sig, frame):
         self.signal_received = (sig, frame)
-    
+
     def __exit__(self, type, value, traceback):
         signal.signal(signal.SIGINT, self.old_handler)
         if self.signal_received:
             self.old_handler(*self.signal_received)
 
-print = functools.partial(print, flush=True)
 
 # https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/utils/_utils.py#L69-L111
 def random_user_agent():
@@ -83,7 +85,9 @@ def random_user_agent():
     )
     return _USER_AGENT_TPL % random.choice(_CHROME_VERSIONS)
 
+
 USER_AGENT = random_user_agent()
+
 
 def get_cookies(cookiefile):
     cookie_names = ('nicosid', 'user_session', 'user_session_secure')
@@ -98,13 +102,18 @@ def get_cookies(cookiefile):
                     m = re.match(f'{cookie}=(?P<{cookie}>' + r'[^ ",;\\]+)', line)
                     if m:
                         d[cookie] = m.group(cookie)
-    except:
+    except OSError:
         pass
-    assert(all(cookie in d for cookie in cookie_names))
+    try:
+        assert all(cookie in d for cookie in cookie_names)
+    except AssertionError as e:
+        print('Could not read session cookies')
+        raise e
     return d
 
+
 def parse_headers(s):
-    pattern = r'(?P<key>[a-zA-Z0-9\-]+):\s*(?P<value>.+)'
+    pattern = r'\s*(?P<key>[a-zA-Z0-9\-]+):\s*(?P<value>.+)'
     p = re.compile(pattern)
     d = dict()
     for i in s.split('\n'):
@@ -115,118 +124,121 @@ def parse_headers(s):
         d['User-Agent'] = USER_AGENT
     return d
 
+
 def parse_cookies(cookies):
     return '; '.join([f'{k}={cookies[k]}' for k in cookies])
 
+
 NICOVIDEO_PATTERN = re.compile(r'(?:https?://(?:(?:www\.|secure\.|sp\.)?nicovideo\.jp/watch|nico\.ms)/)?(?P<id>(?:[a-z]{2})?[0-9]+)', flags=re.IGNORECASE)
 
-LANGUAGES = \
-{
+LANGUAGES = {
     'ja-jp': 'Japanese',
     'zh-tw': 'Chinese (Traditional)',
     'en-us': 'English',
 }
 
 HEADERS_DEFAULT = parse_headers(
-'''
-GET /watch/sm9 HTTP/1.1
-Host: www.nicovideo.jp
-Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
-Accept-Language: en-US,en;q=0.5
-Accept-Encoding: gzip, deflate, br
-Connection: keep-alive
-Cookie: will-be-replaced
-Upgrade-Insecure-Requests: 1
-Sec-Fetch-Dest: document
-Sec-Fetch-Mode: navigate
-Sec-Fetch-Site: none
-Sec-Fetch-User: ?1
-'''
+    '''
+    GET /watch/sm9 HTTP/1.1
+    Host: www.nicovideo.jp
+    Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+    Accept-Language: en-US,en;q=0.5
+    Accept-Encoding: gzip, deflate, br
+    Connection: keep-alive
+    Cookie: will-be-replaced
+    Upgrade-Insecure-Requests: 1
+    Sec-Fetch-Dest: document
+    Sec-Fetch-Mode: navigate
+    Sec-Fetch-Site: none
+    Sec-Fetch-User: ?1
+    '''
 )
 
 HEADERS_WATCH = parse_headers(
-'''
-GET /api/watch/v3/sm9?_frontendId=6&_frontendVersion=0&actionTrackId=0_0&i18nLanguage=ja-jp HTTP/1.1
-Host: www.nicovideo.jp
-Accept: */*
-Accept-Language: en-US,en;q=0.5
-Accept-Encoding: gzip, deflate, br
-Referer: https://www.nicovideo.jp/
-Connection: keep-alive
-Cookie: will-be-replaced
-Sec-Fetch-Dest: empty
-Sec-Fetch-Mode: cors
-Sec-Fetch-Site: same-origin
-Pragma: no-cache
-Cache-Control: no-cache
-'''
+    '''
+    GET /api/watch/v3/sm9?_frontendId=6&_frontendVersion=0&actionTrackId=0_0&i18nLanguage=ja-jp HTTP/1.1
+    Host: www.nicovideo.jp
+    Accept: */*
+    Accept-Language: en-US,en;q=0.5
+    Accept-Encoding: gzip, deflate, br
+    Referer: https://www.nicovideo.jp/
+    Connection: keep-alive
+    Cookie: will-be-replaced
+    Sec-Fetch-Dest: empty
+    Sec-Fetch-Mode: cors
+    Sec-Fetch-Site: same-origin
+    Pragma: no-cache
+    Cache-Control: no-cache
+    '''
 )
 
 HEADERS_THREAD_KEY = parse_headers(
-'''
-GET /v1/comment/keys/thread?videoId=sm9 HTTP/1.1
-Host: nvapi.nicovideo.jp
-Accept: */*
-Accept-Language: en-US,en;q=0.5
-Accept-Encoding: gzip, deflate, br
-Referer: https://www.nicovideo.jp/
-X-Frontend-Id: 6
-X-Frontend-Version: 0
-X-Niconico-Language: ja-jp
-Origin: https://www.nicovideo.jp
-Connection: keep-alive
-Cookie: will-be-replaced
-Sec-Fetch-Dest: empty
-Sec-Fetch-Mode: cors
-Sec-Fetch-Site: same-site
-'''
+    '''
+    GET /v1/comment/keys/thread?videoId=sm9 HTTP/1.1
+    Host: nvapi.nicovideo.jp
+    Accept: */*
+    Accept-Language: en-US,en;q=0.5
+    Accept-Encoding: gzip, deflate, br
+    Referer: https://www.nicovideo.jp/
+    X-Frontend-Id: 6
+    X-Frontend-Version: 0
+    X-Niconico-Language: ja-jp
+    Origin: https://www.nicovideo.jp
+    Connection: keep-alive
+    Cookie: will-be-replaced
+    Sec-Fetch-Dest: empty
+    Sec-Fetch-Mode: cors
+    Sec-Fetch-Site: same-site
+    '''
 )
 
 HEADERS_PAST_LOG_OPTIONS = parse_headers(
-'''
-OPTIONS /v1/threads HTTP/1.1
-Host: nvcomment.nicovideo.jp
-Accept: */*
-Accept-Language: en-US,en;q=0.5
-Accept-Encoding: gzip, deflate, br
-Referer: https://www.nicovideo.jp/
-Access-Control-Request-Method: POST
-Access-Control-Request-Headers: x-client-os-type,x-frontend-id,x-frontend-version
-Origin: https://www.nicovideo.jp
-Connection: keep-alive
-Sec-Fetch-Dest: empty
-Sec-Fetch-Mode: no-cors
-Sec-Fetch-Site: same-site
-Pragma: no-cache
-Cache-Control: no-cache
-'''
+    '''
+    OPTIONS /v1/threads HTTP/1.1
+    Host: nvcomment.nicovideo.jp
+    Accept: */*
+    Accept-Language: en-US,en;q=0.5
+    Accept-Encoding: gzip, deflate, br
+    Referer: https://www.nicovideo.jp/
+    Access-Control-Request-Method: POST
+    Access-Control-Request-Headers: x-client-os-type,x-frontend-id,x-frontend-version
+    Origin: https://www.nicovideo.jp
+    Connection: keep-alive
+    Sec-Fetch-Dest: empty
+    Sec-Fetch-Mode: no-cors
+    Sec-Fetch-Site: same-site
+    Pragma: no-cache
+    Cache-Control: no-cache
+    '''
 )
 
 HEADERS_PAST_LOG = parse_headers(
-'''
-POST /v1/threads HTTP/1.1
-Host: nvcomment.nicovideo.jp
-Accept: */*
-Accept-Language: en-US,en;q=0.5
-Accept-Encoding: gzip, deflate, br
-Referer: https://www.nicovideo.jp/
-x-client-os-type: others
-x-frontend-id: 6
-x-frontend-version: 0
-Content-Type: text/plain;charset=UTF-8
-Origin: https://www.nicovideo.jp
-Connection: keep-alive
-Sec-Fetch-Dest: empty
-Sec-Fetch-Mode: cors
-Sec-Fetch-Site: same-site
-Pragma: no-cache
-Cache-Control: no-cache
-'''
+    '''
+    POST /v1/threads HTTP/1.1
+    Host: nvcomment.nicovideo.jp
+    Accept: */*
+    Accept-Language: en-US,en;q=0.5
+    Accept-Encoding: gzip, deflate, br
+    Referer: https://www.nicovideo.jp/
+    x-client-os-type: others
+    x-frontend-id: 6
+    x-frontend-version: 0
+    Content-Type: text/plain;charset=UTF-8
+    Origin: https://www.nicovideo.jp
+    Connection: keep-alive
+    Sec-Fetch-Dest: empty
+    Sec-Fetch-Mode: cors
+    Sec-Fetch-Site: same-site
+    Pragma: no-cache
+    Cache-Control: no-cache
+    '''
 )
 # Content-Length will be added automatically
 
-def download_file_simple(url: str, data: bytes = None, headers: dict = {}, method: str | None = None, decompress: bool = True) -> bytes:
-    assert(headers.get('Cookie') != 'will-be-replaced')
+
+def download_file_simple(url: str, data: bytes = None, headers: dict = {},
+                         method: str | None = None, decompress: bool = True) -> bytes:
+    assert (headers.get('Cookie') != 'will-be-replaced')
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     with urllib.request.urlopen(req) as resp:
         response_data = resp.read()
@@ -234,19 +246,20 @@ def download_file_simple(url: str, data: bytes = None, headers: dict = {}, metho
         if not encoding or not decompress:
             data = response_data
         elif encoding == 'gzip':
-                data = gzip.decompress(response_data)
+            data = gzip.decompress(response_data)
         elif encoding == 'deflate':
             try:
                 data = zlib.decompress(response_data)
-            except:
-                #Non-standard raw deflate supported by web browsers
+            except zlib.error:
+                # Non-standard raw deflate supported by web browsers
                 data = zlib.decompress(response_data, wbits=-15)
         elif encoding == 'br':
             data = brotli.decompress(response_data)
         else:
             raise ValueError('Unsupported Content-Encoding: ' + encoding)
-            
+
     return data
+
 
 def get_video_timestamp(video_id: str, cookies: dict, language: str) -> str:
     cookies = cookies.copy()
@@ -258,7 +271,7 @@ def get_video_timestamp(video_id: str, cookies: dict, language: str) -> str:
         resp = download_file_simple(url, headers=headers, method='GET')
         j = json.loads(resp)
         j = j['data']
-    except:
+    except (urllib.request.HTTPError, KeyError):
         url = 'https://www.nicovideo.jp/watch/' + video_id
         headers = HEADERS_DEFAULT
         headers['Cookie'] = parse_cookies(cookies)
@@ -272,9 +285,10 @@ def get_video_timestamp(video_id: str, cookies: dict, language: str) -> str:
         j = json.loads(j)
     video_timestamp = j['comment']['layers'][0]['threadIds'][0]['id']
     thread_key = j['comment']['nvComment']['threadKey']
-    assert(isinstance(video_timestamp, int) and video_timestamp > 0)
+    assert (isinstance(video_timestamp, int) and video_timestamp > 0)
     video_timestamp = str(video_timestamp)
     return video_timestamp, thread_key
+
 
 def get_thread_key(video_id: str, cookies: dict, language: str) -> str:
     cookies = cookies.copy()
@@ -287,6 +301,7 @@ def get_thread_key(video_id: str, cookies: dict, language: str) -> str:
     j = json.loads(resp)
     thread_key = j['data']['threadKey']
     return thread_key
+
 
 def get_past_log(video_id: str, thread_key: str, video_timestamp: str, log_timestamp: int, language: str) -> bytes:
     url = 'https://nvcomment.nicovideo.jp/v1/threads'
@@ -306,6 +321,7 @@ def get_past_log(video_id: str, thread_key: str, video_timestamp: str, log_times
     resp = download_file_simple(url, data=data, headers=HEADERS_PAST_LOG, method='POST')
     return resp
 
+
 def convert_past_log_to_old_style(j, forks=None):
     comments = []
     for f in j['data']['threads']:
@@ -315,11 +331,12 @@ def convert_past_log_to_old_style(j, forks=None):
             comment = c.copy()
             comment['content'] = c['body']
             comment['mail'] = ' '.join(c['commands'])
-            comment['vpos'] = c['vposMs']//10
+            comment['vpos'] = c['vposMs'] // 10
             comment['date'] = int(datetime.datetime.fromisoformat(c['postedAt']).timestamp())
             comments.append(comment)
     comments.sort(key=lambda x: x['date'])
     return comments
+
 
 def get_nextpage(j, forks=('main', 'easy')):
     mindates = []
@@ -330,10 +347,11 @@ def get_nextpage(j, forks=('main', 'easy')):
             mindate = datetime.datetime.fromisoformat(f['comments'][0]['postedAt'])
             mindates.append(int(mindate.timestamp()))
     if mindates:
-        return max(mindates) + 1 #adding 1 prevents comments posted at the same time from being missed
+        return max(mindates) + 1  # adding 1 prevents comments posted at the same time from being missed
     return None
 
-#Merge older comments into newer log
+
+# Merge older comments into newer log
 def merge_past_log(log_newer, log_older, forks=None):
     for i in range(len(log_newer['data']['threads'])):
         if forks is not None and log_newer['data']['threads'][i]['fork'] not in forks:
@@ -350,6 +368,7 @@ def merge_past_log(log_newer, log_older, forks=None):
             new_start += 1
         log_newer['data']['threads'][i]['comments'] = new_comments[new_start:]
 
+
 def clip_log(log, min_log_timestamp, forks=None):
     for i in range(len(log['data']['threads'])):
         if forks is not None and log['data']['threads'][i]['fork'] not in forks:
@@ -364,6 +383,7 @@ def clip_log(log, min_log_timestamp, forks=None):
             start += 1
         log['data']['threads'][i]['comments'] = comments[start:]
 
+
 def serialize_protobuf(log, video_timestamp, forks=('main', 'easy')):
     j = log
     comments = []
@@ -374,20 +394,19 @@ def serialize_protobuf(log, video_timestamp, forks=('main', 'easy')):
             comment = nndcomment_pb2.NNDComment()
             comment.thread = int(video_timestamp)
             comment.no = c['no']
-            comment.vpos = c['vposMs']//10
+            comment.vpos = c['vposMs'] // 10
             comment.date = int(datetime.datetime.fromisoformat(c['postedAt']).timestamp())
             comment.date_usec = 0
             comment.anonymity = '184' in c['commands']
             comment.user_id = c['userId']
             comment.mail = ' '.join(c['commands'])
-            #comment.leaf = ?
+            # comment.leaf = ?
             comment.premium = c['isPremium']
             comment.score = c['score']
             comment.content = c['body']
-            #13
-            #14
+            # 13
+            # 14
             comment.fork = f['fork']
-            
             comments.append(comment)
     comments.sort(key=lambda x: -x.date)
     comments_serialized = []
@@ -396,19 +415,16 @@ def serialize_protobuf(log, video_timestamp, forks=('main', 'easy')):
         comment_len = len(serialized)
         comments_serialized.extend([comment_len.to_bytes(4), serialized])
     return b''.join(comments_serialized)
-    
-            
 
 
-#TODO: first page gets owner
-
-
-def download_past_logs(output_file, video_id, log_timestamp, cookies, language, min_log_timestamp=0, max_pages=1, compress=True, append_new=False):
+# TODO: first page gets owner
+def download_past_logs(output_file, video_id, log_timestamp, cookies, language,
+                       min_log_timestamp=0, max_pages=1, compress=True, append_new=False):
     orig_filename = output_file
     if compress:
         output_file += ".gz"
     if (os.path.exists(output_file)):
-        if not append_new: # and input("File " + output_file + " already exists. Overwrite? [y/N] ").strip().lower() != "y":
+        if not append_new:  # and input("File " + output_file + " already exists. Overwrite? [y/N] ").strip().lower() != "y":
             print("File exists, not overwriting.")
             return False
     else:
@@ -430,9 +446,8 @@ def download_past_logs(output_file, video_id, log_timestamp, cookies, language, 
             comment.ParseFromString(comment_serialized)
             min_log_timestamp = comment.date + 1
 
-
     if (os.path.exists(output_file + ".part")):
-        if os.path.getsize(output_file + ".part") <= 50: # empty files, or only gzip header
+        if os.path.getsize(output_file + ".part") <= 50:  # empty files, or only gzip header
             os.remove(output_file + ".part")
         else:
             with open_func(output_file + ".part", mode="rb") as find_fp:
@@ -447,7 +462,7 @@ def download_past_logs(output_file, video_id, log_timestamp, cookies, language, 
                 comment_serialized = find_fp.read(size)
                 comment = nndcomment_pb2.NNDComment()
                 comment.ParseFromString(comment_serialized)
-                log_timestamp = comment.date - 1 #TODO: this could skip comments posted 1 sec apart
+                log_timestamp = comment.date - 1  # TODO: this could skip comments posted 1 sec apart
                 # print(str(comment).encode())
     elif compress:
         # Put the original filename in the gzip header
@@ -464,7 +479,7 @@ def download_past_logs(output_file, video_id, log_timestamp, cookies, language, 
             if index != -1:
                 out_fp.seek(index)
                 out_fp.write(orig_filename.encode())
-        
+
     try:
         with open_func(output_file + ".part", mode="ab") as out_fp:
             video_timestamp, thread_key = get_video_timestamp(video_id, cookies, language)
@@ -482,15 +497,16 @@ def download_past_logs(output_file, video_id, log_timestamp, cookies, language, 
                     if num_errors > 5:
                         print('Download incomplete')
                         break
-                    print('Got HTTP Error code: ' + str(e.code) + '. Retrying(' + str(num_errors) + ') with new thread key...')
+                    print('Got HTTP Error code: ' + str(e.code) +
+                          '. Retrying(' + str(num_errors) + ') with new thread key...')
                     num_errors += 1
                     continue
                 num_errors = 0
                 past_log = json.loads(past_log)
 
-                print('Iteration: ' + str(i), 'Before: ' + str(nextpage), \
+                print('Iteration: ' + str(i), 'Before: ' + str(nextpage),
                       'Comments left: ' + str(past_log['data']['globalComments'][0]['count']))
-                
+
                 if final_log is None:
                     pass
                 else:
@@ -503,8 +519,8 @@ def download_past_logs(output_file, video_id, log_timestamp, cookies, language, 
                 if nextpage is None:
                     break
                 if nextpage is not None and prevpage is not None:
-                    if prevpage <= nextpage: #prevent potential infinite loop
-                        nextpage = prevpage-1
+                    if prevpage <= nextpage:  # prevent potential infinite loop
+                        nextpage = prevpage - 1
                 if nextpage <= min_log_timestamp:
                     clip_log(final_log, min_log_timestamp)
                     with DelayedKeyboardInterrupt():
@@ -526,8 +542,9 @@ def download_past_logs(output_file, video_id, log_timestamp, cookies, language, 
     except KeyboardInterrupt:
         print('Exiting clean.')
 
-#TODO: binary search on error
-#conversion, save in parts
+# TODO: binary search on error
+# conversion, save in parts
+
 
 def nicovideo_url(url):
     m = NICOVIDEO_PATTERN.match(url)
@@ -535,22 +552,30 @@ def nicovideo_url(url):
         raise ValueError("Invalid video ID/URL: " + url)
     return m.group('id').lower()
 
+
 def main():
     if len(sys.argv) == 1:
         sys.argv.append('--help')
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-d', '--date', metavar=('DATE'), type=int, default=int(time.time()), help=('Unix timestamp to start downloading from, defaults to current time'))
-    parser.add_argument('-l', '--language', metavar=('LANGUAGE'), type=str.lower, default='ja-jp', choices=LANGUAGES, help=(f'Comment language'))
-    parser.add_argument('-c', '--compress', action='store_true', help=(f'Compress output with gzip'))
-    parser.add_argument('-a', '--appendnew', action='store_true', help=(f'Append new comments if file is already downloaded'))
-    parser.add_argument('video_id', metavar=('VIDEO_ID'), type=nicovideo_url, nargs='+', help=('Video ID or URL to download comments from'))
+    parser.add_argument('-d', '--date', metavar=('DATE'), type=int, default=int(time.time()),
+                        help=('Unix timestamp to start downloading from, defaults to current time'))
+    parser.add_argument('-l', '--language', metavar=('LANGUAGE'), type=str.lower, default='ja-jp', choices=LANGUAGES,
+                        help=('Comment language'))
+    parser.add_argument('-c', '--compress', action='store_true',
+                        help=('Compress output with gzip'))
+    parser.add_argument('-a', '--appendnew', action='store_true',
+                        help=('Append new comments if file is already downloaded'))
+    parser.add_argument('video_id', metavar=('VIDEO_ID'), type=nicovideo_url, nargs='+',
+                        help=('Video ID or URL to download comments from'))
     args = parser.parse_args()
 
     for vid in args.video_id:
         output_file = vid + '.' + args.language + '.bin'
-        download_past_logs(output_file, vid, args.date, get_cookies('cookies.txt'), args.language, min_log_timestamp=0, max_pages=-1, compress=args.compress, append_new=args.appendnew)
+        download_past_logs(output_file, vid, args.date, get_cookies('cookies.txt'), args.language, min_log_timestamp=0,
+                           max_pages=-1, compress=args.compress, append_new=args.appendnew)
+
 
 if __name__ == '__main__':
     main()
