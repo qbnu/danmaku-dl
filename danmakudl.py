@@ -11,7 +11,6 @@ import time
 import gzip
 import html
 import datetime
-import nndcomment_pb2
 import signal
 import functools
 import random
@@ -22,6 +21,8 @@ try:
     import brotli
 except ModuleNotFoundError:
     pass
+
+import nndcomment_pb2
 
 print = functools.partial(print, flush=True)
 
@@ -91,7 +92,7 @@ USER_AGENT = random_user_agent()
 
 def get_cookies(cookiefile):
     cookie_names = ('nicosid', 'user_session', 'user_session_secure')
-    d = dict()
+    d = {}
     try:
         with open(cookiefile) as f:
             for line in f:
@@ -115,7 +116,7 @@ def get_cookies(cookiefile):
 def parse_headers(s):
     pattern = r'\s*(?P<key>[a-zA-Z0-9\-]+):\s*(?P<value>.+)'
     p = re.compile(pattern)
-    d = dict()
+    d = {}
     for i in s.split('\n'):
         m = p.match(i)
         if m and m.group('key').lower() != 'host':
@@ -238,9 +239,10 @@ HEADERS_PAST_LOG = parse_headers(
 # Content-Length will be added automatically
 
 
-def download_file_simple(url: str, data: bytes = None, headers: dict = {},
+def download_file_simple(url: str, data: bytes = None, headers: dict | None = None,
                          method: str | None = None, decompress: bool = True) -> bytes:
-    assert (headers.get('Cookie') != 'will-be-replaced')
+    if headers:
+        assert headers.get('Cookie') != 'will-be-replaced'
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     with urllib.request.urlopen(req) as resp:
         response_data = resp.read()
@@ -308,15 +310,15 @@ def get_thread_key(video_id: str, cookies: dict, language: str) -> str:
 
 def get_past_log(video_id: str, thread_key: str, video_timestamp: str, log_timestamp: int, language: str) -> bytes:
     url = 'https://nvcomment.nicovideo.jp/v1/threads'
-    d = dict()
-    d['params'] = dict()
+    d = {}
+    d['params'] = {}
     targets = ['owner', 'main']
     if language == 'ja-jp':
         targets.append('easy')
     d['params']['targets'] = [{'id': video_timestamp, 'fork': i} for i in targets]
     d['params']['language'] = language
     d['threadKey'] = thread_key
-    d['additionals'] = dict()
+    d['additionals'] = {}
     d['additionals']['when'] = int(log_timestamp)
     data = json.dumps(d, indent=None, separators=(',', ':'))
     data = data.encode('utf-8')
@@ -426,7 +428,7 @@ def download_past_logs(output_file, video_id, log_timestamp, cookies, language,
     orig_filename = output_file
     if compress:
         output_file += ".gz"
-    if (os.path.exists(output_file)):
+    if os.path.exists(output_file):
         if not append_new:
             print("File exists, not overwriting.")
             return False
@@ -449,7 +451,7 @@ def download_past_logs(output_file, video_id, log_timestamp, cookies, language,
             comment.ParseFromString(comment_serialized)
             min_log_timestamp = comment.date + 1
 
-    if (os.path.exists(output_file + ".part")):
+    if os.path.exists(output_file + ".part"):
         if os.path.getsize(output_file + ".part") <= 100:  # empty files, or only gzip header
             os.remove(output_file + ".part")
         else:
@@ -532,7 +534,7 @@ def download_past_logs(output_file, video_id, log_timestamp, cookies, language,
                 i += 1
 
             with DelayedKeyboardInterrupt():
-                out_fp.write(serialize_protobuf(final_log, video_timestamp, forks=('owner')))
+                out_fp.write(serialize_protobuf(final_log, video_timestamp, forks=('owner',)))
         if append_new:
             os.rename(output_file, output_file)
             os.rename(output_file + ".part", output_file + ".part")
@@ -541,9 +543,10 @@ def download_past_logs(output_file, video_id, log_timestamp, cookies, language,
                     shutil.copyfileobj(old_fp, new_fp)
             os.remove(output_file)
         os.rename(output_file + ".part", output_file)
-        return
+        return True
     except KeyboardInterrupt:
         print('Exiting clean.')
+        return False
 
 # TODO: binary search on error
 # conversion, save in parts
@@ -563,15 +566,15 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-d', '--date', metavar=('DATE'), type=int, default=int(time.time()),
-                        help=('Unix timestamp to start downloading from, defaults to current time'))
+                        help='Unix timestamp to start downloading from, defaults to current time')
     parser.add_argument('-l', '--language', metavar=('LANGUAGE'), type=str.lower, default='ja-jp', choices=LANGUAGES,
-                        help=('Comment language'))
+                        help='Comment language')
     parser.add_argument('-c', '--compress', action='store_true',
-                        help=('Compress output with gzip'))
+                        help='Compress output with gzip')
     parser.add_argument('-a', '--append_new', action='store_true',
-                        help=('Append new comments if file is already downloaded'))
+                        help='Append new comments if file is already downloaded')
     parser.add_argument('video_id', metavar=('VIDEO_ID'), type=nicovideo_url, nargs='+',
-                        help=('Video ID or URL to download comments from'))
+                        help='Video ID or URL to download comments from')
     args = parser.parse_args()
 
     for vid in args.video_id:
