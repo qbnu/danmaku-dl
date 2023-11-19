@@ -129,7 +129,8 @@ def parse_cookies(cookies):
     return '; '.join([f'{k}={cookies[k]}' for k in cookies])
 
 
-NICOVIDEO_PATTERN = re.compile(r'(?:https?://(?:(?:www\.|secure\.|sp\.)?nicovideo\.jp/watch|nico\.ms)/)?(?P<id>(?:[a-z]{2})?[0-9]+)', flags=re.IGNORECASE)
+NICOVIDEO_PATTERN = re.compile(
+    r'(?:(?:https?://)?(?:(?:www\.|secure\.|sp\.)?nicovideo\.jp/watch|nico\.ms)/)?(?P<id>(?:[a-z]{2})?[0-9]+)', flags=re.IGNORECASE)
 
 LANGUAGES = {
     'ja-jp': 'Japanese',
@@ -447,7 +448,7 @@ def download_past_logs(output_file, video_id, log_timestamp, cookies, language,
             min_log_timestamp = comment.date + 1
 
     if (os.path.exists(output_file + ".part")):
-        if os.path.getsize(output_file + ".part") <= 50:  # empty files, or only gzip header
+        if os.path.getsize(output_file + ".part") <= 100:  # empty files, or only gzip header
             os.remove(output_file + ".part")
         else:
             with open_func(output_file + ".part", mode="rb") as find_fp:
@@ -494,12 +495,12 @@ def download_past_logs(output_file, video_id, log_timestamp, cookies, language,
                         thread_key = get_thread_key(video_id, cookies, language)
                     past_log = get_past_log(video_id, thread_key, video_timestamp, nextpage, language)
                 except urllib.error.HTTPError as e:
+                    num_errors += 1
                     if num_errors > 5:
                         print('Download incomplete')
                         break
                     print('Got HTTP Error code: ' + str(e.code) +
                           '. Retrying(' + str(num_errors) + ') with new thread key...')
-                    num_errors += 1
                     continue
                 num_errors = 0
                 past_log = json.loads(past_log)
