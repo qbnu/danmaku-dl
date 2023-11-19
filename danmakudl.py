@@ -40,10 +40,10 @@ class DelayedKeyboardInterrupt:
             self.old_handler(*self.signal_received)
 
 
-# https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/utils/_utils.py#L69-L111
+# https://github.com/yt-dlp/yt-dlp/blob/f124fa458826308afc86cf364c509f857686ecfd/yt_dlp/utils/networking.py#L9-L51
 def random_user_agent():
-    _USER_AGENT_TPL = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36'
-    _CHROME_VERSIONS = (
+    ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36'
+    chrome_versions = (
         '90.0.4430.212',
         '90.0.4430.24',
         '90.0.4430.70',
@@ -83,7 +83,7 @@ def random_user_agent():
         '96.0.4664.93',
         '97.0.4692.20',
     )
-    return _USER_AGENT_TPL % random.choice(_CHROME_VERSIONS)
+    return ua % random.choice(chrome_versions)
 
 
 USER_AGENT = random_user_agent()
@@ -130,7 +130,8 @@ def parse_cookies(cookies):
 
 
 NICOVIDEO_PATTERN = re.compile(
-    r'(?:(?:https?://)?(?:(?:www\.|secure\.|sp\.)?nicovideo\.jp/watch|nico\.ms)/)?(?P<id>(?:[a-z]{2})?[0-9]+)', flags=re.IGNORECASE)
+    r'(?:(?:https?://)?(?:(?:www\.|secure\.|sp\.)?nicovideo\.jp/watch|nico\.ms)/)?(?P<id>(?:[a-z]{2})?[0-9]+)',
+    flags=re.IGNORECASE)
 
 LANGUAGES = {
     'ja-jp': 'Japanese',
@@ -266,7 +267,8 @@ def get_video_timestamp(video_id: str, cookies: dict, language: str) -> str:
     cookies = cookies.copy()
     cookies['lang'] = language
     try:
-        url = f'https://www.nicovideo.jp/api/watch/v3/{video_id}?_frontendId=6&_frontendVersion=0&actionTrackId=0_0&i18nLanguage={language}'
+        url = 'https://www.nicovideo.jp/api/watch/v3/'
+        url += f'{video_id}?_frontendId=6&_frontendVersion=0&actionTrackId=0_0&i18nLanguage={language}'
         headers = HEADERS_WATCH.copy()
         headers['Cookie'] = parse_cookies(cookies)
         resp = download_file_simple(url, headers=headers, method='GET')
@@ -425,7 +427,7 @@ def download_past_logs(output_file, video_id, log_timestamp, cookies, language,
     if compress:
         output_file += ".gz"
     if (os.path.exists(output_file)):
-        if not append_new:  # and input("File " + output_file + " already exists. Overwrite? [y/N] ").strip().lower() != "y":
+        if not append_new:
             print("File exists, not overwriting.")
             return False
     else:
