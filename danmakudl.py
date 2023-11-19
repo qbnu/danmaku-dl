@@ -565,7 +565,7 @@ def main():
                         help=('Comment language'))
     parser.add_argument('-c', '--compress', action='store_true',
                         help=('Compress output with gzip'))
-    parser.add_argument('-a', '--appendnew', action='store_true',
+    parser.add_argument('-a', '--append_new', action='store_true',
                         help=('Append new comments if file is already downloaded'))
     parser.add_argument('video_id', metavar=('VIDEO_ID'), type=nicovideo_url, nargs='+',
                         help=('Video ID or URL to download comments from'))
@@ -574,7 +574,7 @@ def main():
     for vid in args.video_id:
         output_file = vid + '.' + args.language + '.bin'
         download_past_logs(output_file, vid, args.date, get_cookies('cookies.txt'), args.language, min_log_timestamp=0,
-                           max_pages=-1, compress=args.compress, append_new=args.appendnew)
+                           max_pages=-1, compress=args.compress, append_new=args.append_new)
 
 
 if __name__ == '__main__':

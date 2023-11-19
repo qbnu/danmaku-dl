@@ -9,9 +9,9 @@ Python script to download all danmaku comments from Nico Nico Douga videos.
 ## Setup
 
 ```bash
-git clone https://github.com/qbnu/nnd-danmaku-dl/
-cd nnd-danmaku-dl
-pip install protobuf
+git clone https://github.com/qbnu/danmaku-dl/
+cd danmaku-dl
+pip install -r requirements.txt
 ```
 Copy the `cookies.template.txt` file to `cookies.txt` and fill in your NND session cookies.
 If your session expires you will have to fill them in again.
